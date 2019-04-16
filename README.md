@@ -1,37 +1,69 @@
-## Welcome to GitHub Pages
+### Docker搭建镜像仓库和配置缓冲地点
 
-You can use the [editor on GitHub](https://github.com/Cocon90/dearcloud.github.io/edit/master/README.md) to maintain and preview the content for your website in Markdown files.
+    参考网址：https://docs.docker.com/engine/reference/commandline/dockerd/#options
 
-Whenever you commit to this repository, GitHub Pages will run [Jekyll](https://jekyllrb.com/) to rebuild the pages in your site, from the content in your Markdown files.
+#### 一、配置Docker镜像仓库
 
-### Markdown
-
-Markdown is a lightweight and easy-to-use syntax for styling your writing. It includes conventions for
-
-```markdown
-Syntax highlighted code block
-
-# Header 1
-## Header 2
-### Header 3
-
-- Bulleted
-- List
-
-1. Numbered
-2. List
-
-**Bold** and _Italic_ and `Code` text
-
-[Link](url) and ![Image](src)
+1、新建docker-compose.yml，内容如下：
+```yml
+version: '3'
+services:
+  docker_registry:
+    image: registry:2.7
+    ports:
+      - 0.0.0.0:22000:5000
+    volumes:
+      - /mnt/disk/docker/registry:/var/lib/registry
+    deploy:
+      placement:
+        constraints:
+          - node.hostname==host-10-126-141-22
+      restart_policy:
+        condition: on-failure
+```
+2、创建DockerSwarm集群
+``` bash
+    docker swarm init --advertise-addr 10.126.141.22
 ```
 
-For more details see [GitHub Flavored Markdown](https://guides.github.com/features/mastering-markdown/).
+3、部署镜像仓库
+```bash
+    docker stack deploy -c docker-compose.yml docker-registery
+```
 
-### Jekyll Themes
+4、查看运行情况
+``` bash
+    docker stack ps docker-registery
+```
 
-Your Pages site will use the layout and styles from the Jekyll theme you have selected in your [repository settings](https://github.com/Cocon90/dearcloud.github.io/settings). The name of this theme is saved in the Jekyll `_config.yml` configuration file.
+5、停止服务
+``` bash
+    docker stack rm docker-registery
+```
 
-### Support or Contact
 
-Having trouble with Pages? Check out our [documentation](https://help.github.com/categories/github-pages-basics/) or [contact support](https://github.com/contact) and we’ll help you sort it out.
+#### 二、配置Docker镜像存储地点，和配置局域网内的不安全镜像仓库：
+
+1、创建配置
+```bash
+sudo mkdir /mnt/disk/docker/dataroot
+sudo mkdir -p /etc/docker
+sudo tee /etc/docker/daemon.json <<-'EOF'
+{
+  "insecure-registries": ["10.126.141.22:22000"],
+  "data-root":"/mnt/disk/docker/dataroot"
+}
+EOF
+```
+
+2、重新加载配置
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart docker
+```
+
+3、查看是否已修改
+```bash
+sudo docker info | grep Root
+```
+
